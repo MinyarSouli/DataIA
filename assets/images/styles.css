@@ -1,0 +1,358 @@
+* {
+    font-family: 'Segoe UI', sans-serif;
+    box-sizing: border-box;
+  }
+  
+  /* ---------- BACKGROUNDS ---------- */
+  .landing-bg, .auth-bg {
+    height: 100vh;
+    background: linear-gradient(135deg, #4f7cff, #8b5cf6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  /* ---------- LANDING ---------- */
+  .landing-box {
+    text-align: center;
+    color: white;
+  }
+  
+  .logo {
+    width: 120px;
+    margin-bottom: 20px;
+  }
+  
+  .spinner {
+    margin: 30px auto;
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(255,255,255,0.3);
+    border-top: 4px solid white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  
+  /* ---------- AUTH CARD ---------- */
+  .card {
+    background: white;
+    padding: 30px;
+    width: 320px;
+    border-radius: 20px;
+    box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+    text-align: center;
+  }
+  
+  .card h2 {
+    margin-bottom: 20px;
+    color: #4f7cff;
+  }
+  
+  .card input {
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0;
+    border-radius: 10px;
+    border: 1px solid #ddd;
+  }
+  
+  .card button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #4f7cff, #8b5cf6);
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+  }
+  
+  .card a {
+    color: #8b5cf6;
+    text-decoration: none;
+  }
+  
+  /* Reset CSS */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Corps de la page(dashboard) */
+body {
+    background: linear-gradient(135deg, #4a6bff, #8e54e9);
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+/* Conteneur principal */
+.container {
+    width: 100%;
+    max-width: 400px;
+    height: 90vh;
+    background-color: white;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+/* En-tête avec le logo du robot */
+header {
+    text-align: center;
+    padding: 20px;
+    background: linear-gradient(135deg, #e8f0fe 0%, #dce7fe 100%);
+}
+
+.robot-logo img {
+    width: 120px;
+    height: 120px;
+    margin: 0 auto;
+    display: block;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4a6bff, #8e54e9);
+    padding: 10px;
+}
+
+.robot-logo h1{
+    color: white;
+}
+
+/* Titre de bienvenue */
+.container h2 {
+    color: #333;
+    font-size: 20px;
+    margin-top: 10px;
+    font-weight: 600;
+}
+
+/* Section d'upload de fichier */
+.upload-section {
+    padding: 20px;
+    text-align: center;
+}
+
+.upload-section h3 {
+    color: #555;
+    font-size: 16px;
+    margin-bottom: 10px;
+}
+
+.upload-section p {
+    color: #888;
+    font-size: 14px;
+    margin-bottom: 15px;
+}
+
+/* Style pour le bouton d'upload */
+.upload-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+input[type="file"] {
+    display: none;
+}
+
+.upload-button {
+    background-color: #4a6bff;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 25px;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.3s ease;
+}
+
+.upload-button:hover {
+    background-color: #3a5bef;
+    transform: translateY(-2px);
+}
+
+.submit-button {
+    background-color: #4a6bff;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 25px;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.3s ease;
+}
+
+.submit-button:hover {
+    background-color: #3a5bef;
+    transform: translateY(-2px);
+}
+
+/* Section de chat */
+.chat-section {
+    flex: 1;
+    background-color: #e8f0fe;
+    padding: 20px;
+    overflow-y: auto;
+    border-radius: 0 0 0 20px;
+}
+
+.chat-header {
+    margin-bottom: 20px;
+}
+
+.chat-header h3 {
+    color: #333;
+    font-size: 18px;
+    text-align: center;
+}
+
+/* Messages du chat */
+.chat-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 20px;
+    height: 60%;
+    overflow-y: auto;
+}
+
+.message {
+    max-width: 80%;
+    padding: 12px 16px;
+    border-radius: 18px;
+    font-size: 16px;
+    line-height: 1.4;
+    word-wrap: break-word;
+}
+
+.bot-message {
+    align-self: flex-start;
+    background-color: white;
+    color: #333;
+    border-top-left-radius: 0;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.user-message {
+    align-self: flex-end;
+    background-color: #4a6bff;
+    color: white;
+    border-top-right-radius: 0;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+/* Formulaire de chat */
+.chat-form {
+    display: flex;
+    gap: 10px;
+    margin-top: auto;
+}
+
+.chat-form textarea {
+    flex: 1;
+    padding: 12px 16px;
+    border: 1px solid #ddd;
+    border-radius: 25px;
+    resize: none;
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.chat-form textarea:focus {
+    border-color: #4a6bff;
+}
+
+.send-button {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background-color: #4a6bff;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.3s ease;
+}
+
+.send-button:hover {
+    background-color: #3a5bef;
+    transform: scale(1.05);
+}
+
+/* Section de résultat */
+.result-section {
+    padding: 20px;
+    background-color: white;
+    border-radius: 0 0 20px 0;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.result-section h3 {
+    color: #333;
+    font-size: 18px;
+    margin-bottom: 10px;
+}
+
+.resultat-box {
+    background-color: #f9f9f9;
+    padding: 15px;
+    border-radius: 10px;
+    border-left: 4px solid #4a6bff;
+}
+
+/* Bouton de déconnexion */
+.logout-section {
+    padding: 15px;
+    text-align: center;
+}
+
+.logout-button {
+    background-color: #ff4d4d;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 25px;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.3s ease;
+}
+
+.logout-button:hover {
+    background-color: #e60000;
+    transform: translateY(-2px);
+}
+
+/* Scrollbar personnalisée */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #4a6bff;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #3a5bef;
+}

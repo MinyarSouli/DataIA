@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8">
+    <title>Login - DataIA</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  </head>
+  <body class="auth-bg">
+    <div class="card">
+      <h2>Connexion</h2>
+      {% if error %}
+        <p style="color:red">{{ error }}</p>
+      {% endif %}
+      <form method="POST">
+        <input type="email" name="email" placeholder="Email" required />
+        <input type="password" name="mot_de_passe" placeholder="Mot de passe" required />
+        <button type="submit">Se connecter</button>
+      </form>
+      <p>Pas de compte ? <a href="{{ url_for('signup') }}">Sign up</a></p>
+    </div>
+  </body>
+</html>

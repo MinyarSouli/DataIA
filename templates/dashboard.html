@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DataIA - Dashboard</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='styles.css') }}"
+    />
+  </head>
+  <body>
+    <div class="container">
+      <!-- En-tête avec le robot -->
+      <header>
+        <div class="logo1.png">
+          <img
+            src="{{ url_for('static', filename='images/robot.png') }}"
+            alt="DataIA Robot"
+          />
+        </div>
+        <h2>Bienvenue, {{ session['user_email'] }}</h2>
+      </header>
+      <!-- Section d'upload de fichier -->
+      <section class="upload-section">
+        <h3>Uploader un fichier</h3>
+        <p>(CSV / Excel / PDF)</p>
+        <form method="POST" enctype="multipart/form-data" class="upload-form">
+          <input type="file" name="fichier" id="fichier" required />
+          <label for="fichier" class="upload-button">Choisir un fichier</label>
+          <button type="submit" class="submit-button">Envoyer</button>
+        </form>
+      </section>
+      <!-- Section de chat avec l'IA -->
+      <section class="chat-section">
+        <div class="chat-header"><h3>Analyse IA</h3></div>
+        <div class="chat-messages">
+          <!-- Messages du chatbot -->
+          <div class="message bot-message">
+            <p>Hey there!<br />I'm Navigator<br />What should I call you?</p>
+          </div>
+          <div class="message user-message"><p>Jane</p></div>
+          <div class="message bot-message"><p>I'd prefer not to say</p></div>
+        </div>
+        <form method="POST" class="chat-form">
+          <textarea
+            name="prompt"
+            placeholder="Pose ta question..."
+            rows="2"
+            required
+          ></textarea>
+          <button type="submit" class="send-button">→</button>
+        </form>
+      </section>
+      <!-- Résultat de l'analyse -->
+      <section class="result-section">
+        {% if resultat %}
+        <h3>Résultat:</h3>
+        <div class="resultat-box"><p>{{ resultat }}</p></div>
+        {% endif %}
+      </section>
+      <!-- Lien de déconnexion -->
+      <div class="logout-section">
+        <a href="{{ url_for('logout') }}" class="logout-button">Déconnexion</a>
+      </div>
+    </div>
+  </body>
+</html>
