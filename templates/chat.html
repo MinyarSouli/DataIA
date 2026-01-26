@@ -1,0 +1,72 @@
+{% extends "base.html" %} {% block content %}
+<div class="container">
+  <div class="card shadow-sm border-0" style="border-radius: 15px">
+    <div class="card-header bg-white border-bottom-0 py-3">
+      <h5 class="mb-0">
+        <i class="fas fa-robot text-info me-2"></i> Analyse de :
+        <strong>{{ fichier.nom_fichier }}</strong>
+      </h5>
+    </div>
+
+    <div
+      id="chat-box"
+      class="card-body overflow-auto"
+      style="height: 400px; background-color: #fcfcfc"
+    >
+      <div class="text-center text-muted my-5">
+        <i class="fas fa-magic fa-2x mb-3"></i>
+        <p>
+          Posez n'importe quelle question sur vos données (Finance, Stats...)
+        </p>
+      </div>
+    </div>
+
+    <div class="card-footer bg-white border-top-0 p-3">
+      <div class="input-group">
+        <input
+          type="text"
+          id="user-input"
+          class="form-control border-0 bg-light"
+          placeholder="Ex: Quel est le total des ventes ?"
+          style="border-radius: 10px 0 0 10px"
+        />
+        <button
+          onclick="sendMessage({{ fichier.id_fichier }})"
+          class="btn btn-primary"
+          style="
+            border-radius: 0 10px 10px 0;
+            background-color: #00d2d3;
+            border: none;
+          "
+        >
+          <i class="fas fa-paper-plane"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function sendMessage(fileId) {
+    let input = document.getElementById("user-input");
+    let chatBox = document.getElementById("chat-box");
+
+    if (input.value.trim() === "") return;
+
+    // Zid el-message mta3 l-user fil chat
+    chatBox.innerHTML += `<p class='text-end'><strong>Vous:</strong> ${input.value}</p>`;
+
+    fetch("/ask_ia", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file_id: fileId, question: input.value }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        chatBox.innerHTML += `<p class='text-start'><strong>IA:</strong> ${data.answer}</p>`;
+        input.value = "";
+        chatBox.scrollTop = chatBox.scrollHeight;
+      });
+  }
+</script>
+{% endblock %}

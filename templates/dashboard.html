@@ -1,68 +1,126 @@
-<!DOCTYPE html>
-<html lang="fr">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DataIA - Dashboard</title>
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='styles.css') }}"
-    />
-  </head>
-  <body>
-    <div class="container">
-      <!-- En-tête avec le robot -->
-      <header>
-        <div class="logo1.png">
-          <img
-            src="{{ url_for('static', filename='images/robot.png') }}"
-            alt="DataIA Robot"
-          />
-        </div>
-        <h2>Bienvenue, {{ session['user_email'] }}</h2>
-      </header>
-      <!-- Section d'upload de fichier -->
-      <section class="upload-section">
-        <h3>Uploader un fichier</h3>
-        <p>(CSV / Excel / PDF)</p>
-        <form method="POST" enctype="multipart/form-data" class="upload-form">
-          <input type="file" name="fichier" id="fichier" required />
-          <label for="fichier" class="upload-button">Choisir un fichier</label>
-          <button type="submit" class="submit-button">Envoyer</button>
-        </form>
-      </section>
-      <!-- Section de chat avec l'IA -->
-      <section class="chat-section">
-        <div class="chat-header"><h3>Analyse IA</h3></div>
-        <div class="chat-messages">
-          <!-- Messages du chatbot -->
-          <div class="message bot-message">
-            <p>Hey there!<br />I'm Navigator<br />What should I call you?</p>
+{% extends "base.html" %} {% block content %}
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 style="font-weight: 600; color: #1e272e">Dashboard</h2>
+    <span class="badge bg-info text-dark"
+      >Bienvenue, {{ current_user.nom_utilisateur }}</span
+    >
+  </div>
+
+  <div class="row mb-4">
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm p-3" style="border-radius: 12px">
+        <div class="d-flex align-items-center">
+          <div
+            class="icon-box bg-light-blue p-3 me-3"
+            style="border-radius: 10px; background-color: #e3f2fd"
+          >
+            <i class="fas fa-file-csv fa-2x" style="color: #0984e3"></i>
           </div>
-          <div class="message user-message"><p>Jane</p></div>
-          <div class="message bot-message"><p>I'd prefer not to say</p></div>
+          <div>
+            <h6 class="text-muted mb-0">Mes Fichiers</h6>
+            <h4 class="mb-0" style="font-weight: 700">{{ fichiers|length }}</h4>
+          </div>
         </div>
-        <form method="POST" class="chat-form">
-          <textarea
-            name="prompt"
-            placeholder="Pose ta question..."
-            rows="2"
-            required
-          ></textarea>
-          <button type="submit" class="send-button">→</button>
-        </form>
-      </section>
-      <!-- Résultat de l'analyse -->
-      <section class="result-section">
-        {% if resultat %}
-        <h3>Résultat:</h3>
-        <div class="resultat-box"><p>{{ resultat }}</p></div>
-        {% endif %}
-      </section>
-      <!-- Lien de déconnexion -->
-      <div class="logout-section">
-        <a href="{{ url_for('logout') }}" class="logout-button">Déconnexion</a>
       </div>
     </div>
-  </body>
-</html>
+    <div class="col-md-4">
+      <div class="card border-0 shadow-sm p-3" style="border-radius: 12px">
+        <div class="d-flex align-items-center">
+          <div
+            class="icon-box p-3 me-3"
+            style="border-radius: 10px; background-color: #f3e5f5"
+          >
+            <i class="fas fa-question-circle fa-2x" style="color: #6c5ce7"></i>
+          </div>
+          <div>
+            <h6 class="text-muted mb-0">Questions Posées</h6>
+            <h4 class="mb-0" style="font-weight: 700">{{ questions_count }}</h4>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4" style="border-radius: 15px">
+    <div class="card-body p-4">
+      <h5 class="mb-3" style="font-weight: 600">Analyser un nouveau fichier</h5>
+      <form
+        action="{{ url_for('upload_file') }}"
+        method="POST"
+        enctype="multipart/form-data"
+      >
+        <div class="row align-items-center">
+          <div class="col-md-9">
+            <input
+              type="file"
+              name="file"
+              class="form-control border-0 bg-light"
+              accept=".csv, .xlsx, .xls"
+              required
+            />
+            <small class="text-muted"
+              >Formats acceptés: CSV, Excel (Max 10MB)</small
+            >
+          </div>
+          <div class="col-md-3">
+            <button
+              type="submit"
+              class="btn btn-primary w-100 py-2"
+              style="background-color: #00d2d3; border: none; font-weight: 600"
+            >
+              <i class="fas fa-upload me-2"></i> Upload & Parser
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm" style="border-radius: 15px">
+    <div class="card-body p-4">
+      <h5 class="mb-3" style="font-weight: 600">Fichiers Récents</h5>
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead class="table-light">
+            <tr>
+              <th>Nom du fichier</th>
+              <th>Date d'Upload</th>
+              <th>Type</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in fichiers %}
+            <tr>
+              <td>
+                <i class="fas fa-file-alt me-2 text-primary"></i> {{
+                f.nom_fichier }}
+              </td>
+              <td>{{ f.date_upload.strftime('%d/%m/%Y %H:%M') }}</td>
+              <td>
+                <span class="badge bg-secondary">{{ f.type_fichier }}</span>
+              </td>
+              <td>
+                <a href="#" class="btn btn-sm btn-outline-primary"
+                  ><i class="fas fa-robot me-1"></i> Analyser</a
+                >
+                <button class="btn btn-sm btn-outline-danger">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="4" class="text-center text-muted py-4">
+                Aucun fichier trouvé. Commencez par uploader un document !
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

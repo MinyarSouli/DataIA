@@ -1,141 +1,153 @@
+# ================== 1. Imports ==================
+import os
+import pandas as pd
 import mysql.connector
-from flask import Flask, redirect, render_template, request, session, url_for
-from werkzeug.security import check_password_hash, generate_password_hash
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 
-# Dash
-from dash_app import create_dash_app
+# ================== 2. Config ==================
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'ma_cle_secrete_123'
+app.config['UPLOAD_FOLDER'] = 'uploads'
 
-# ------------------------ Flask App ------------------------
-app = Flask(
-    __name__,
-    static_folder="static",
-    template_folder="templates"
-)
+# Thabbet el-dossier mta3 el-uploads mawjoud
+if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'])
 
-app.secret_key = "super_secret_key_change_it"
-
-# ------------------------ DB Connection ------------------------
-
-
+# Connection function direct lel MySQL
 def get_db_connection():
     return mysql.connector.connect(
         host="localhost",
         user="root",
-        password="",
-        database="dataia",
-        port=3306
+        password="", 
+        database="dataia"
     )
 
-# ------------------------ Landing ------------------------
+# ================== 3. Login Manager & User Class ==================
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
 
+# Class User makhdouma bech t-wafe9 Flask-Login m3a el-Base mta3ek
+class User(UserMixin):
+    def __init__(self, id_user, nom, email, password, role, bloque):
+        self.id = id_user
+        self.nom = nom
+        self.email = email
+        self.password = password
+        self.role = role
+        self.bloque = bloque
 
-@app.route("/")
+@login_manager.user_loader
+def load_user(user_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM utilisateurs WHERE id_utilisateur = %s", (user_id,))
+    user_data = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    if user_data:
+        return User(user_data['id_utilisateur'], user_data['nom_utilisateur'], 
+                    user_data['email'], user_data['mot_de_passe'], 
+                    user_data['role'], user_data['est_bloque'])
+    return None
+
+# ================== 4. Routes ==================
+
+@app.route('/')
 def landing():
-    return render_template("landing.html")
+    return render_template('landing.html')
 
-# ------------------------ Signup ------------------------
-
-
-@app.route("/signup", methods=["GET", "POST"])
+@app.route('/signup', methods=['GET', 'POST'])
 def signup():
-    error = None
-
-    if request.method == "POST":
-        nom = request.form.get("nom_utilisateur")
-        email = request.form.get("email")
-        password = request.form.get("mot_de_passe")
-
-        if not nom or not email or not password:
-            error = "❌ Tous les champs sont obligatoires"
-            return render_template("signup.html", error=error)
-
-        hashed_password = generate_password_hash(password)
+    if request.method == 'POST':
+        nom = request.form.get('nom_utilisateur')
+        email = request.form.get('email')
+        password = generate_password_hash(request.form.get('password'), method='pbkdf2:sha256')
 
         conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-
-        # Vérifier si email existe
-        cursor.execute(
-            "SELECT id_utilisateur FROM utilisateurs WHERE email = %s",
-            (email,)
-        )
-        if cursor.fetchone():
-            error = "❌ Email déjà utilisé"
-        else:
-            cursor.execute(
-                """
-                INSERT INTO utilisateurs (nom_utilisateur, email, mot_de_passe)
-                VALUES (%s, %s, %s)
-                """,
-                (nom, email, hashed_password)
-            )
+        cursor = conn.cursor()
+        try:
+            cursor.execute("INSERT INTO utilisateurs (nom_utilisateur, email, mot_de_passe) VALUES (%s, %s, %s)", 
+                           (nom, email, password))
             conn.commit()
+            flash('Compte créé! Connectez-vous.', 'success')
+            return redirect(url_for('login'))
+        except Exception as e:
+            flash(f"Erreur: {e}", "danger")
+        finally:
             cursor.close()
             conn.close()
-            return redirect(url_for("login"))
+    return render_template('signup.html')
 
-        cursor.close()
-        conn.close()
-
-    return render_template("signup.html", error=error)
-
-# ------------------------ Login ------------------------
-
-
-@app.route("/login", methods=["GET", "POST"])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
-    error = None
-
-    if request.method == "POST":
-        email = request.form.get("email")
-        password = request.form.get("mot_de_passe")
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
 
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-
-        cursor.execute(
-            "SELECT * FROM utilisateurs WHERE email = %s",
-            (email,)
-        )
-        user = cursor.fetchone()
-
-        if user and check_password_hash(user["mot_de_passe"], password):
-            session["logged_in"] = True
-            session["user_id"] = user["id_utilisateur"]
-            session["user_nom"] = user["nom_utilisateur"]
-            session["user_email"] = user["email"]
-
-            cursor.close()
-            conn.close()
-            return redirect("/dash/")
-
-        error = "❌ Email ou mot de passe incorrect"
+        cursor.execute("SELECT * FROM utilisateurs WHERE email = %s", (email,))
+        user_data = cursor.fetchone()
         cursor.close()
         conn.close()
 
-    return render_template("login.html", error=error)
+        if user_data and check_password_hash(user_data['mot_de_passe'], password):
+            user = User(user_data['id_utilisateur'], user_data['nom_utilisateur'], 
+                        user_data['email'], user_data['mot_de_passe'], 
+                        user_data['role'], user_data['est_bloque'])
+            login_user(user)
+            return redirect(url_for('dashboard'))
+        flash('Email ou mot de passe incorrect', 'danger')
+    return render_template('login.html')
 
-# ------------------------ Logout ------------------------
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM fichiers WHERE id_utilisateur = %s", (current_user.id,))
+    fichiers = cursor.fetchall()
+    
+    # Statistique sghira
+    cursor.execute("SELECT COUNT(*) as count FROM questions WHERE id_utilisateur = %s", (current_user.id,))
+    q_count = cursor.fetchone()['count']
+    
+    cursor.close()
+    conn.close()
+    return render_template('dashboard.html', fichiers=fichiers, questions_count=q_count)
 
+@app.route('/upload', methods=['POST'])
+@login_required
+def upload_file():
+    if 'file' not in request.files: return redirect(url_for('dashboard'))
+    file = request.files['file']
+    if file.filename == '': return redirect(url_for('dashboard'))
+    
+    if file:
+        filename = secure_filename(file.filename)
+        path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(path)
+        
+        file_type = 'Excel' if filename.endswith(('.xls', '.xlsx')) else 'CSV'
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO fichiers (id_utilisateur, nom_fichier, chemin_fichier, type_fichier) VALUES (%s, %s, %s, %s)",
+                       (current_user.id, filename, path, file_type))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        flash('Fichier uploadé!', 'success')
+    return redirect(url_for('dashboard'))
 
-@app.route("/logout")
+@app.route('/logout')
+@login_required
 def logout():
-    session.clear()
-    return redirect(url_for("login"))
+    logout_user()
+    return redirect(url_for('login'))
 
-# ------------------------ Protect Dash ------------------------
-
-
-@app.before_request
-def protect_dash():
-    if request.path.startswith("/dash"):
-        if not session.get("logged_in"):
-            return redirect(url_for("login"))
-
-
-# ------------------------ Init Dash ------------------------
-create_dash_app(app)
-
-# ------------------------ Run ------------------------
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True)
