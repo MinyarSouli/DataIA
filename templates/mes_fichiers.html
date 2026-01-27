@@ -1,0 +1,93 @@
+{% extends "base.html" %} {% block content %}
+<style>
+  .custom-btn {
+    background-color: #00d2d3;
+    border: none;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+  }
+
+  .custom-btn:hover {
+    background-color: #01a3a4;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .table-card {
+    border-radius: 15px;
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  }
+</style>
+
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 style="font-weight: 600; color: #1e272e">Mes Fichiers</h2>
+      <p class="text-muted">Gérez l'ensemble de vos documents importés</p>
+    </div>
+    <a
+      href="{{ url_for('dashboard') }}"
+      class="btn btn-outline-secondary btn-sm"
+    >
+      <i class="fas fa-plus me-1"></i> Nouveau Upload
+    </a>
+  </div>
+
+  <div class="card table-card">
+    <div class="card-body p-4">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Nom du fichier</th>
+              <th>Date d'Upload</th>
+              <th>Format</th>
+              <th class="text-center">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in fichiers %}
+            <tr>
+              <td class="ps-3">
+                <i class="fas fa-file-alt me-2 text-primary"></i>
+                <strong>{{ f.nom_fichier }}</strong>
+              </td>
+              <td>{{ f.date_upload.strftime('%d/%m/%Y %H:%M') }}</td>
+              <td>
+                <span class="badge bg-secondary text-uppercase"
+                  >{{ f.type_fichier }}</span
+                >
+              </td>
+              <td class="text-center">
+                <a
+                  href="{{ url_for('chat', file_id=f.id_fichier) }}"
+                  class="btn btn-primary custom-btn btn-sm px-3"
+                >
+                  <i class="fas fa-robot me-1"></i> Analyser
+                </a>
+
+                <a
+                  href="{{ url_for('delete_file', file_id=f.id_fichier) }}"
+                  class="btn btn-sm btn-outline-danger ms-2"
+                  onclick="return confirm('Etes-vous sûr de vouloir supprimer ce fichier ? Cela effacera aussi l'historique des discussions.')"
+                >
+                  <i class="fas fa-trash"></i>
+                </a>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="4" class="text-center text-muted py-5">
+                <i class="fas fa-folder-open fa-3x mb-3 d-block"></i>
+                Aucun fichier trouvé dans votre bibliothèque.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

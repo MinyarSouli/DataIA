@@ -1,4 +1,18 @@
 {% extends "base.html" %} {% block content %}
+<style>
+  .custom-btn {
+    background-color: #00d2d3; /* El-loun el-asli */
+    border: none;
+    border-radius: 8px;
+    transition: all 0.3s ease; /* Transition lil-hover */
+  }
+
+  .custom-btn:hover {
+    background-color: #01a3a4; /* It-ghamma9 el-loun ki t-mouse */
+    transform: translateY(-2px); /* It-tla3 chwaya l-fou9 */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Zid chwaya dhel */
+  }
+</style>
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 style="font-weight: 600; color: #1e272e">Dashboard</h2>
@@ -102,12 +116,19 @@
                 <span class="badge bg-secondary">{{ f.type_fichier }}</span>
               </td>
               <td>
-                <a href="#" class="btn btn-sm btn-outline-primary"
-                  ><i class="fas fa-robot me-1"></i> Analyser</a
+                <a
+                  href="{{ url_for('chat', file_id=f.id_fichier) }}"
+                  class="btn btn-primary custom-btn"
                 >
-                <button class="btn btn-sm btn-outline-danger">
+                  <i class="fas fa-robot me-1"></i> Analyser
+                </a>
+                <a
+                  href="{{ url_for('delete_file', file_id=f.id_fichier) }}"
+                  class="btn btn-sm btn-outline-danger"
+                  onclick="return confirm('Etes-vous sûr de vouloir supprimer ce fichier ?')"
+                >
                   <i class="fas fa-trash"></i>
-                </button>
+                </a>
               </td>
             </tr>
             {% else %}

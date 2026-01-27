@@ -23,17 +23,19 @@
         background-color: #f8f9fa;
       }
 
-      /* Sidebar Style */
       .sidebar {
         height: 100vh;
         width: 250px;
         position: fixed;
         top: 0;
         left: 0;
-        background-color: #1e272e; /* Navy Blue ghame9 */
+        background-color: #1e272e;
         padding-top: 20px;
         color: white;
         transition: 0.3s;
+        /* نزيدو هوني flexbox باش نتحكمو في مكان الـ Logout */
+        display: flex;
+        flex-direction: column;
       }
 
       .sidebar a {
@@ -47,7 +49,7 @@
 
       .sidebar a:hover {
         background-color: #485460;
-        color: #00d2d3; /* Electric Blue/Cyan */
+        color: #00d2d3;
         padding-left: 35px;
       }
 
@@ -55,6 +57,13 @@
         border-left: 5px solid #00d2d3;
         background-color: #2f3542;
         color: white;
+      }
+
+      /* هذي تخلي الـ Logout ينزل لأسفل الـ Sidebar */
+      .logout-area {
+        margin-top: auto;
+        border-top: 1px solid #485460;
+        padding-bottom: 20px;
       }
 
       .main-content {
@@ -76,16 +85,28 @@
   <body>
     <div class="sidebar">
       <div class="logo-area"><i class="fas fa-brain"></i> DataIA</div>
-      <a href="{{ url_for('landing') }}" class="active"
-        ><i class="fas fa-home me-2"></i> Accueil</a
+
+      <a
+        href="{{ url_for('landing') }}"
+        class="{{ 'active' if request.endpoint == 'landing' else '' }}"
       >
+        <i class="fas fa-home me-2"></i> Accueil
+      </a>
 
       {% if current_user.is_authenticated %}
-      <a href="dashboard.html"
-        ><i class="fas fa-chart-line me-2"></i> Dashboard</a
+      <a
+        href="{{ url_for('dashboard') }}"
+        class="{{ 'active' if request.endpoint == 'dashboard' else '' }}"
       >
-      <a href="#"><i class="fas fa-file-upload me-2"></i> Mes Fichiers</a>
-      <a href="chat.html"><i class="fas fa-comments me-2"></i> Chat IA</a>
+        <i class="fas fa-chart-line me-2"></i> Dashboard
+      </a>
+
+      <a
+        href="{{ url_for('mes_fichiers') }}"
+        class="{{ 'active' if request.endpoint == 'mes_fichiers' else '' }}"
+      >
+        <i class="fas fa-file-upload me-2"></i> Mes Fichiers
+      </a>
 
       {% if current_user.role == 'administrateur' %}
       <a href="#" style="color: #ff9f43"
@@ -93,14 +114,25 @@
       >
       {% endif %}
 
-      <a href="#" class="mt-5 text-danger"
-        ><i class="fas fa-sign-out-alt me-2"></i> Déconnexion</a
-      >
+      <div class="logout-area">
+        <a href="{{ url_for('logout') }}" class="text-danger">
+          <i class="fas fa-sign-out-alt me-2"></i> Déconnexion
+        </a>
+      </div>
+
       {% else %}
-      <a href="{{ url_for('signup') }}"
-        ><i class="fas fa-user-plus me-2"></i> Inscription</a
+      <a
+        href="{{ url_for('signup') }}"
+        class="{{ 'active' if request.endpoint == 'signup' else '' }}"
       >
-      <a href="#"><i class="fas fa-sign-in-alt me-2"></i> Connexion</a>
+        <i class="fas fa-user-plus me-2"></i> Inscription
+      </a>
+      <a
+        href="{{ url_for('login') }}"
+        class="{{ 'active' if request.endpoint == 'login' else '' }}"
+      >
+        <i class="fas fa-sign-in-alt me-2"></i> Connexion
+      </a>
       {% endif %}
     </div>
 
