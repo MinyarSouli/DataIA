@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Dashboard - DataIA</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <style>
+      :root {
+        --bg-color: #f4f7f9;
+        --violet-deep: #6366f1;
+        --teal-ai: #0ea5e9;
+        --slate-gray: #64748b;
+        --dark-text: #1e293b;
+        --soft-danger: #fee2e2; 
+        --icon-danger: #ef4444; 
+      }
+      body {
+        background-color: var(--bg-color);
+        font-family: "Inter", sans-serif;
+        color: var(--dark-text);
+        scroll-behavior: smooth;
+      }
+      .card-stat { border: none; border-radius: 16px; color: white; transition: all 0.3s ease; }
+      .bg-gradient-violet { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); }
+      .bg-gradient-teal { background: linear-gradient(135deg, #0ea5e9 0%, #2dd4bf 100%); }
+      .bg-gradient-slate { background: linear-gradient(135deg, #64748b 0%, #94a3b8 100%); }
+      
+      .table-container { background: white; border-radius: 20px; padding: 30px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+      
+      .badge-count { background-color: rgba(99, 102, 241, 0.1); color: var(--violet-deep); font-weight: 700; padding: 0.5em 0.8em; border-radius: 10px; cursor: pointer; border: 1px solid transparent; transition: 0.3s; }
+      .badge-count:hover { border-color: var(--violet-deep); background-color: var(--violet-deep); color: white; }
+      
+      .btn-violet { background-color: var(--violet-deep); color: white; border-radius: 10px; border: none; padding: 6px 15px; }
+      .btn-violet:hover { background-color: #4f46e5; }
+
+
+      .btn-delete-soft {
+        background-color: var(--soft-danger);
+        color: var(--icon-danger);
+        border: none;
+        padding: 8px 12px;
+        border-radius: 10px;
+        transition: all 0.2s;
+      }
+      .btn-delete-soft:hover {
+        background-color: var(--icon-danger);
+        color: white;
+        transform: scale(1.05);
+      }
+
+      .highlight-row { background-color: rgba(99, 102, 241, 0.08) !important; border-left: 5px solid var(--violet-deep) !important; }
+    </style>
+  </head>
+  <body>
+    <div class="container py-5">
+      <div class="d-flex justify-content-between align-items-center mb-5">
+        <div>
+          <h2 class="fw-bold m-0" style="color: var(--violet-deep)">Admin Console</h2>
+          <p class="text-muted">Gestion du système DataIA</p>
+        </div>
+        <a href="/dashboard" class="btn btn-outline-primary px-4"><i class="fas fa-home me-2"></i>Dashboard</a>
+      </div>
+
+      <div class="row g-4 mb-5">
+        <div class="col-md-4">
+          <div class="card card-stat bg-gradient-violet p-3">
+            <div class="card-body d-flex justify-content-between align-items-center">
+              <div><h6 class="text-uppercase small">Utilisateurs</h6><h2 class="fw-bold m-0">{{ users }}</h2></div>
+              <i class="fas fa-user-circle fa-2x opacity-50"></i>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card card-stat bg-gradient-teal p-3">
+            <div class="card-body d-flex justify-content-between align-items-center">
+              <div><h6 class="text-uppercase small">Rapports PDF</h6><h2 class="fw-bold m-0">{{ reports }}</h2></div>
+              <i class="fas fa-file-alt fa-2x opacity-50"></i>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card card-stat bg-gradient-slate p-3">
+            <div class="card-body d-flex justify-content-between align-items-center">
+              <div><h6 class="text-uppercase small">Total Questions</h6><h2 class="fw-bold m-0">{{ all_users|sum(attribute='nb_questions') }}</h2></div>
+              <i class="fas fa-brain fa-2x opacity-50"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-container mb-5">
+        <h5 class="fw-bold mb-4"><i class="fas fa-users-cog me-2 text-primary"></i>Utilisateurs & Activité</h5>
+        <div class="table-responsive">
+          <table class="table align-middle">
+            <thead>
+              <tr>
+                <th>Nom d'utilisateur</th>
+                <th class="text-center">Activité (Filtrer)</th>
+                <th>Statut</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for u in all_users %}
+              <tr>
+                <td><span class="fw-semibold text-dark">{{ u.nom_utilisateur }}</span></td>
+                <td class="text-center">
+                  <button onclick="filterArchive('{{ u.nom_utilisateur }}')" class="btn badge-count">
+                    {{ u.nb_questions }} <i class="fas fa-eye ms-1"></i>
+                  </button>
+                </td>
+                <td>
+                  <span class="badge rounded-pill {{ 'bg-danger-subtle text-danger' if u.est_bloque == 1 else 'bg-success-subtle text-success' }} px-3">
+                    {{ 'Bloqué' if u.est_bloque == 1 else 'Actif' }}
+                  </span>
+                </td>
+                <td class="text-end">
+                  <form action="{{ url_for('toggle_user', user_id=u.id_utilisateur) }}" method="POST" class="d-inline">
+                    <button class="btn btn-sm btn-light border px-3 me-2" style="border-radius: 10px;">
+                      {{ 'Débloquer' if u.est_bloque == 1 else 'Bloquer' }}
+                    </button>
+                  </form>
+                  
+                  <form action="{{ url_for('delete_user', user_id=u.id_utilisateur) }}" method="POST" class="d-inline" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?');">
+                    <button type="submit" class="btn-delete-soft">
+                      <i class="fas fa-trash-alt"></i>
+                    </button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="table-container" id="archive-section">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h5 class="fw-bold m-0"><i class="fas fa-archive me-2 text-info"></i>Détails des Analyses</h5>
+          <button class="btn btn-sm btn-outline-secondary" style="border-radius: 10px;" onclick="resetFilter()">Afficher tout</button>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr class="table-light">
+                <th>Utilisateur</th>
+                <th>Question / Analyse</th>
+                <th class="text-end">Rapport</th>
+              </tr>
+            </thead>
+            <tbody id="archive-body">
+              {% for r in list %}
+              <tr class="archive-row" data-user="{{ r.user_name }}">
+                <td><span class="badge bg-light text-primary border">{{ r.user_name }}</span></td>
+                <td><small class="text-muted">{{ r.question_texte }}</small></td>
+                <td class="text-end">
+                  <a href="{{ url_for('view_report', filename=r.chemin_resume) }}" class="btn btn-sm btn-violet" target="_blank">
+                    <i class="fas fa-file-pdf"></i> PDF
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function filterArchive(username) {
+        document.getElementById('archive-section').scrollIntoView();
+        const rows = document.querySelectorAll('.archive-row');
+        rows.forEach(row => {
+          if (row.getAttribute('data-user') === username) {
+            row.style.display = '';
+            row.classList.add('highlight-row');
+          } else {
+            row.style.display = 'none';
+            row.classList.remove('highlight-row');
+          }
+        });
+      }
+
+      function resetFilter() {
+        const rows = document.querySelectorAll('.archive-row');
+        rows.forEach(row => {
+          row.style.display = '';
+          row.classList.remove('highlight-row');
+        });
+      }
+    </script>
+  </body>
+</html>

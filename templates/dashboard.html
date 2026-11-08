@@ -1,16 +1,51 @@
 {% extends "base.html" %} {% block content %}
 <style>
-  .custom-btn {
-    background-color: #00d2d3; /* El-loun el-asli */
-    border: none;
-    border-radius: 8px;
-    transition: all 0.3s ease; /* Transition lil-hover */
+  
+  .bot-message {
+    line-height: 1.6;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   }
 
-  .custom-btn:hover {
-    background-color: #01a3a4; /* It-ghamma9 el-loun ki t-mouse */
-    transform: translateY(-2px); /* It-tla3 chwaya l-fou9 */
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Zid chwaya dhel */
+  .bot-message strong {
+    display: block;
+    margin-top: 18px; 
+    margin-bottom: 8px; 
+    color: #00b894;
+    font-weight: 700;
+    font-size: 1.1rem;
+  }
+
+  .bot-message table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+    background-color: #ffffff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+  }
+
+  .bot-message th {
+    background-color: #00d2d3;
+    color: white;
+    padding: 12px;
+    text-align: left;
+  }
+
+  .bot-message td {
+    border-bottom: 1px solid #eee;
+    padding: 10px;
+    color: #333;
+  }
+
+  
+  .bot-message ul {
+    margin-bottom: 15px;
+    padding-left: 25px;
+  }
+
+  .bot-message li {
+    margin-bottom: 5px;
   }
 </style>
 <div class="container-fluid">

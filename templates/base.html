@@ -33,7 +33,6 @@
         padding-top: 20px;
         color: white;
         transition: 0.3s;
-        /* نزيدو هوني flexbox باش نتحكمو في مكان الـ Logout */
         display: flex;
         flex-direction: column;
       }
@@ -59,7 +58,6 @@
         color: white;
       }
 
-      /* هذي تخلي الـ Logout ينزل لأسفل الـ Sidebar */
       .logout-area {
         margin-top: auto;
         border-top: 1px solid #485460;
@@ -81,6 +79,9 @@
         margin-bottom: 20px;
       }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   </head>
   <body>
     <div class="sidebar">
@@ -109,7 +110,7 @@
       </a>
 
       {% if current_user.role == 'administrateur' %}
-      <a href="#" style="color: #ff9f43"
+      <a href="{{ url_for('admin_dashboard') }}" style="color: #00d2d3"
         ><i class="fas fa-user-shield me-2"></i> Admin Panel</a
       >
       {% endif %}

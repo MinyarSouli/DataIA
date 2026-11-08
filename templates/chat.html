@@ -3,7 +3,7 @@
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 </head>
 
-<div class="container">
+<div class="container py-4">
   <div class="card shadow-sm border-0" style="border-radius: 15px">
     <div
       class="card-header bg-white border-bottom-0 py-3 d-flex justify-content-between align-items-center"
@@ -12,32 +12,41 @@
         <i class="fas fa-robot text-info me-2"></i> Analyse de :
         <strong>{{ fichier.nom_fichier }}</strong>
       </h5>
-      <button onclick="downloadPDF()" class="btn btn-sm btn-danger">
-        <i class="fas fa-file-pdf"></i> PDF
+      <button onclick="exportLastFive()" class="btn btn-sm btn-danger">
+        <i class="fas fa-file-pdf me-2"></i> Export PDF
       </button>
     </div>
 
     <div
       id="chat-box"
       class="card-body overflow-auto"
-      style="height: 400px; background-color: #fcfcfc"
+      style="
+        height: 500px;
+        background-color: #fcfcfc;
+        display: flex;
+        flex-direction: column;
+      "
     >
       {% if historique %} {% for chat in historique %}
       <div
-        class="message user-message mb-3 p-2 rounded bg-primary text-white ms-auto"
-        style="max-width: 75%"
+        class="message user-message mb-3 p-3 rounded bg-primary text-white ms-auto"
+        style="max-width: 75%; border-radius: 15px 15px 0 15px !important"
       >
         {{ chat.question_texte }}
       </div>
       <div
-        class="message bot-message mb-3 p-2 rounded bg-light text-dark shadow-sm"
-        style="max-width: 75%"
+        class="message bot-message mb-3 p-3 rounded bg-light text-dark shadow-sm"
+        style="
+          max-width: 75%;
+          border-radius: 15px 15px 15px 0 !important;
+          border-left: 4px solid #00d2d3;
+        "
       >
         {{ chat.reponse_texte }}
       </div>
       {% endfor %} {% else %}
-      <div class="text-center text-muted my-5">
-        <i class="fas fa-magic fa-2x mb-3"></i>
+      <div id="empty-chat" class="text-center text-muted my-5">
+        <i class="fas fa-magic fa-2x mb-3 text-info"></i>
         <p>
           Posez n'importe quelle question sur vos données (Finance, Stats...)
         </p>
@@ -52,11 +61,12 @@
           id="user-input"
           class="form-control border-0 bg-light"
           placeholder="Ex: Quel est le total des ventes ?"
-          style="border-radius: 10px 0 0 10px"
+          style="border-radius: 10px 0 0 10px shadow: none;"
+          onkeypress="if(event.key === 'Enter') sendMessage()"
         />
         <button
           onclick="sendMessage()"
-          class="btn btn-primary"
+          class="btn btn-primary px-4"
           style="
             border-radius: 0 10px 10px 0;
             background-color: #00d2d3;
@@ -71,113 +81,185 @@
 </div>
 
 <script>
-  // 1. Fonction appendMessage (زدنا bot-message للـ IA)
-  function appendMessage(sender, text) {
-    const chatBox = document.getElementById('chat-box');
-    const msgDiv = document.createElement('div');
-
-    // التعديل هنا: زدنا bot-message أوتوماتيكياً
-    let bgClass = sender === 'user' ? 'bg-primary text-white ms-auto' : 'bg-light text-dark shadow-sm bot-message';
-
-    msgDiv.className = `message ${sender}-message mb-3 p-2 rounded ${bgClass}`;
-    msgDiv.style.maxWidth = '75%';
-    msgDiv.innerHTML = text;
-    chatBox.appendChild(msgDiv);
-    chatBox.scrollTop = chatBox.scrollHeight;
-  }
-
-  // 2. Fonction sendMessage
-  function sendMessage() {
-    let input = document.getElementById('user-input');
-    let question = input.value;
-    if (!question) return;
-
-    appendMessage('user', question);
-    input.value = '';
-
-    fetch('/ask_ia', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        file_id: {{ fichier.id_fichier }},
-        question: question
-      })
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.status === "success") {
-        try {
-          let cleanAnswer = data.answer.trim();
-          if (cleanAnswer.startsWith('{')) {
-            let graphData = JSON.parse(cleanAnswer);
-            renderPlotlyGraph(graphData);
-          } else {
-            appendMessage('bot', data.answer);
-          }
-        } catch (e) {
-          appendMessage('bot', data.answer);
-        }
-      } else {
-        appendMessage('bot', "Erreur: " + data.message);
-      }
-    });
-  }
-
-  // 3. Fonction downloadPDF (تلم الـ bot-message الكل)
-  function downloadPDF() {
-    let messages = document.querySelectorAll('.bot-message');
-    if (messages.length === 0) {
-        alert("Le chat est vide !");
-        return;
-    }
-
-    let fullText = "";
-    messages.forEach(m => {
-      // تنظيف النص من أي HTML (Graphs مثلاً)
-      fullText += m.innerText + "\n\n-------------------\n\n";
-    });
-
-    fetch('/export_pdf', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: fullText })
-    })
-    .then(response => response.blob())
-    .then(blob => {
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'Rapport_Analyse.pdf';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    })
-    .catch(err => console.error("Erreur PDF:", err));
-  }
-
-  // 4. Fonction renderPlotlyGraph
-  function renderPlotlyGraph(graphData) {
-    let graphId = 'graph-' + Date.now();
-    // نزيدو bot-message هنا زادة باش الـ PDF يحس فمة حاجة صارت
-    appendMessage('bot', `<div id="${graphId}" style="width:100%; height:400px;"></div>`);
-
-    let trace = {
-      x: graphData.data.x,
-      y: graphData.data.y,
-      type: graphData.type_graph === 'pie' ? 'pie' : (graphData.type_graph === 'line' ? 'scatter' : 'bar')
-    };
-
-    if(graphData.type_graph === 'pie') {
-      trace = { labels: graphData.data.x, values: graphData.data.y, type: 'pie' };
-    }
-
-    Plotly.newPlot(graphId, [trace], { title: graphData.title });
-  }
-
-  // Scroll automatique louta ki t-7il el-page
-  window.onload = function() {
       const chatBox = document.getElementById('chat-box');
-      chatBox.scrollTop = chatBox.scrollHeight;
-  };
+
+        
+      window.onload = function() {
+          chatBox.scrollTop = chatBox.scrollHeight;
+      };
+
+      function appendMessage(sender, text) {
+          const msgDiv = document.createElement('div');
+          const isUser = sender === 'user';
+
+          msgDiv.className = `message ${sender}-message mb-3 p-3 rounded ${isUser ? 'bg-primary text-white ms-auto' : 'bg-light text-dark shadow-sm bot-message'}`;
+          msgDiv.style.maxWidth = '75%';
+          msgDiv.style.borderRadius = isUser ? '15px 15px 0 15px' : '15px 15px 15px 0';
+
+          if(!isUser) {
+              msgDiv.style.borderLeft = '4px solid #00d2d3';
+              msgDiv.innerHTML = marked.parse(text);
+          } else {
+              msgDiv.textContent = text;
+          }
+
+          chatBox.appendChild(msgDiv);
+          chatBox.scrollTo({ top: chatBox.scrollHeight, behavior: 'smooth' });
+
+          const emptyHint = document.getElementById('empty-chat');
+          if(emptyHint) emptyHint.remove();
+
+          return msgDiv;
+      }
+
+      function sendMessage() {
+      let input = document.getElementById('user-input');
+      let question = input.value;
+      if (!question.trim()) return;
+
+      appendMessage('user', question);
+      input.value = '';
+
+      let loadingMsg = appendMessage('bot', '<i class="fas fa-spinner fa-spin"></i> L’IA analyse vos données...');
+
+      fetch('/ask_ia', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+              file_id: {{ fichier.id_fichier }},
+              question: question
+          })
+      })
+      .then(response => response.json())
+      .then(data => {
+          if (data.status === "success") {
+              let answer = data.answer.trim();
+
+          
+              const jsonMatch = answer.match(/\{[\s\S]*"type_graph"[\s\S]*\}/);
+
+              if (jsonMatch) {
+                  try {
+                      
+                      let graphConfig = JSON.parse(jsonMatch[0]);
+
+                      
+                      let textPart = answer.replace(jsonMatch[0], "").trim();
+
+                      if (textPart) {
+                          loadingMsg.innerHTML = marked.parse(textPart);
+                      } else {
+                          loadingMsg.remove(); 
+                      }
+
+                      renderPlotlyGraph(graphConfig);
+                  } catch (e) {
+                      console.error("Erreur JSON:", e);
+                      loadingMsg.innerHTML = marked.parse(answer);
+                  }
+              } else {
+                 
+                  loadingMsg.innerHTML = marked.parse(answer);
+              }
+          } else {
+              loadingMsg.innerHTML = "Erreur: " + data.message;
+          }
+      })
+      .catch(err => {
+          loadingMsg.innerHTML = "Erreur de connexion au serveur.";
+      });
+  }
+
+      function renderPlotlyGraph(graphData) {
+          let graphId = 'graph-' + Date.now();
+          const graphDiv = document.createElement('div');
+          graphDiv.id = graphId;
+          graphDiv.style.width = '100%';
+          graphDiv.style.height = '350px';
+          graphDiv.className = 'mt-3 mb-3';
+
+          let botMsg = appendMessage('bot', "");
+          botMsg.innerHTML = "";
+          botMsg.appendChild(graphDiv);
+
+          let trace = {
+              x: graphData.data.x || graphData.data.labels,
+              y: graphData.data.y || graphData.data.values,
+              type: graphData.type_graph === 'pie' ? 'pie' : (graphData.type_graph === 'line' ? 'scatter' : 'bar'),
+              marker: { color: '#00d2d3' }
+          };
+
+          if(graphData.type_graph === 'pie') {
+              trace = {
+                  labels: graphData.data.x || graphData.data.labels,
+                  values: graphData.data.y || graphData.data.values,
+                  type: 'pie',
+                  hole: 0.4
+              };
+          }
+
+          const layout = {
+              title: { text: graphData.title },
+              margin: { t: 50, b: 50, l: 50, r: 50 },
+              paper_bgcolor: 'rgba(0,0,0,0)',
+              plot_bgcolor: 'rgba(0,0,0,0)',
+              autosize: true
+          };
+
+          Plotly.newPlot(graphId, [trace], layout, { responsive: true, displayModeBar: false });
+      }
+
+     
+      async function exportLastFive() {
+  
+        const chatBox = document.getElementById('chat-box');
+        const messages = Array.from(chatBox.querySelectorAll('.message'));
+
+   
+        const lastTen = messages.slice(-10);
+
+        
+        const allBotMessages = Array.from(chatBox.querySelectorAll('.bot-message'));
+        const lastBotAnswer = allBotMessages.length > 0 ? allBotMessages[allBotMessages.length - 1].innerText : "Pas de conseil disponible.";
+
+        let historyText = "";
+        lastTen.forEach(msg => {
+            const sender = msg.classList.contains('user-message') ? "Utilisateur" : "Assistant IA";
+            historyText += `${sender} : ${msg.innerText}\n\n`;
+        });
+
+        try {
+          
+            const response = await fetch('/export_pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    history: historyText,   
+                    conseil: lastBotAnswer  
+                })
+            });
+
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = "Rapport_d'analyse(DataIA).pdf";
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+            } else {
+                alert("Erreur lors de la génération du PDF.");
+            }
+        } catch (error) {
+            console.error("Erreur PDF:", error);
+        }
+
+        chatBox.scrollTo({
+      top: chatBox.scrollHeight,
+      behavior: 'smooth'
+    });
+    }
 </script>
 {% endblock %}

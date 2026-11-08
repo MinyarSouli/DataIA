@@ -1,32 +1,35 @@
 # ================== 1. Imports ==================
 import os
 import re
+from functools import wraps
+from io import BytesIO
 
 import mysql.connector
 import pandas as pd
-import requests  # pour Mistral API
-from flask import (Flask, flash, jsonify, redirect, render_template, request,
-                   url_for)
+import requests
+from flask import (Flask, flash, jsonify, make_response, redirect,
+                   render_template, request, send_file, url_for)
 from flask_login import (LoginManager, UserMixin, current_user, login_required,
                          login_user, logout_user)
 from fpdf import FPDF
+from langchain_community.vectorstores import FAISS
+from langchain_huggingface import HuggingFaceEmbeddings
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
+
+from config_ia import MISTRAL_CONFIG, SYSTEM_PROMPT
 
 # ================== 2. Config ==================
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ma_cle_secrete_123'
 app.config['UPLOAD_FOLDER'] = 'uploads'
 
-# --- Configuration Mistral ---
 MISTRAL_API_KEY = "rTC8zh0eyNB0GOV3OA8MySZL2KBCCaUn"
 
-
-# Thabbet el-dossier mta3 el-uploads mawjoud
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
 
-# Connection function direct lel MySQL
+embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 
 def get_db_connection():
@@ -41,8 +44,6 @@ def get_db_connection():
 # ================== 3. Login Manager & User Class ==================
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
-
-# Class User makhdouma bech t-wafe9 Flask-Login m3a el-Base mta3ek
 
 
 class User(UserMixin):
@@ -82,8 +83,7 @@ def signup():
     if request.method == 'POST':
         nom = request.form.get('nom_utilisateur')
         email = request.form.get('email')
-        password = generate_password_hash(request.form.get('password'), method='pbkdf2:sha256')
-
+        password = generate_password_hash(request.form.get('password'))
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
@@ -114,13 +114,38 @@ def login():
         conn.close()
 
         if user_data and check_password_hash(user_data['mot_de_passe'], password):
+
+            
+            if user_data.get('est_bloque') == 1:
+                flash('Votre compte est bloqué par l\'administrateur.', 'danger')
+                return render_template('login.html')
+
+            
             user = User(user_data['id_utilisateur'], user_data['nom_utilisateur'],
                         user_data['email'], user_data['mot_de_passe'],
                         user_data['role'], user_data['est_bloque'])
+
             login_user(user)
-            return redirect(url_for('dashboard'))
+
+           
+            if user_data['role'] == 'administrateur':
+                return redirect(url_for('admin_dashboard'))
+            else:
+                return redirect(url_for('dashboard'))
+
         flash('Email ou mot de passe incorrect', 'danger')
+
     return render_template('login.html')
+
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        
+        if not current_user.is_authenticated or current_user.role != 'administrateur':
+            return "Accès interdit : Vous n'êtes pas administrateur", 403
+        return f(*args, **kwargs)
+    return decorated_function
 
 
 @app.route('/dashboard')
@@ -128,36 +153,205 @@ def login():
 def dashboard():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-
-    # نجيبوا كان آخر 5 ملفات باستعمال LIMIT 5
-    cursor.execute("""
-        SELECT * FROM fichiers 
-        WHERE id_utilisateur = %s 
-        ORDER BY id_fichier DESC 
-        LIMIT 5
-    """, (current_user.id,))
+    cursor.execute("SELECT * FROM fichiers WHERE id_utilisateur = %s ORDER BY id_fichier DESC LIMIT 5", (current_user.id,))
     fichiers = cursor.fetchall()
-
-    # إحصائيات سريعة
     cursor.execute("SELECT COUNT(*) as count FROM questions WHERE id_utilisateur = %s", (current_user.id,))
     q_count = cursor.fetchone()['count']
-
     cursor.close()
     conn.close()
     return render_template('dashboard.html', fichiers=fichiers, questions_count=q_count)
 
 
-# --- الـ Route الجديدة لجميع الملفات ---
+@app.route('/chat/<int:file_id>')
+@login_required
+def chat(file_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM fichiers WHERE id_fichier = %s AND id_utilisateur = %s", (file_id, current_user.id))
+    fichier = cursor.fetchone()
+    cursor.execute(
+        "SELECT question_texte, reponse_texte FROM questions WHERE id_fichier = %s ORDER BY date_question ASC", (file_id,))
+    historique = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    if not fichier:
+        return redirect(url_for('dashboard'))
+    return render_template('chat.html', fichier=fichier, historique=historique)
+
+# ================== Route ask_ia ==================
+
+
+@app.route('/ask_ia', methods=['POST'])
+@login_required
+def ask_ia():
+    try:
+        data = request.get_json()
+        file_id = data.get('file_id')
+        user_question = data.get('question')
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM fichiers WHERE id_fichier = %s", (file_id,))
+        fichier = cursor.fetchone()
+
+        if not fichier:
+            conn.close()
+            return jsonify({"status": "error", "message": "Fichier introuvable"}), 404
+
+        path = fichier['chemin_fichier']
+        df = pd.read_csv(path) if path.endswith('.csv') else pd.read_excel(path)
+
+        cols = df.columns.tolist()
+        summary_stats = df.describe(include='all').to_string()
+        head_data = df.head(5).to_string()
+
+        texts = df.astype(str).apply(lambda x: " | ".join(f"{col}: {val}" for col, val in x.items()), axis=1).tolist()
+
+        vector_store = FAISS.from_texts(texts, embeddings)
+        relevant_docs = vector_store.similarity_search(user_question, k=100)
+        context = "\n".join([doc.page_content for doc in relevant_docs])
+
+        
+        prompt_final = f"""
+STRUCTURE DES COLONNES : {cols}
+STATISTIQUES GLOBALES : {summary_stats}
+EXEMPLE DE DONNÉES : {head_data}
+CONTEXTE DÉTAILLÉ (RAG) :
+{context}
+
+QUESTION UTILISATEUR : {user_question}
+"""
+
+        url = "https://api.mistral.ai/v1/chat/completions"
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {MISTRAL_API_KEY}"}
+
+       
+        payload = {
+            "model": MISTRAL_CONFIG["model"],
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt_final}
+            ],
+            "temperature": MISTRAL_CONFIG["temperature"],
+            "top_p": MISTRAL_CONFIG["top_p"],
+            "max_tokens": MISTRAL_CONFIG["max_tokens"],
+            "n": MISTRAL_CONFIG["n"],
+            "safe_prompt": MISTRAL_CONFIG["safe_prompt"]
+        }
+
+        response = requests.post(url, json=payload, headers=headers)
+
+        if response.status_code == 200:
+            answer = response.json()['choices'][0]['message']['content']
+            cursor.execute("INSERT INTO questions (id_utilisateur, id_fichier, question_texte, reponse_texte, date_question) VALUES (%s, %s, %s, %s, NOW())",
+                           (current_user.id, file_id, user_question, answer))
+            conn.commit()
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "success", "answer": answer})
+
+        return jsonify({"status": "error", "message": "Erreur lors de la communication avec l'IA"}), 500
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# ================== Route export_pdf ==================
+
+
+@app.route('/export_pdf', methods=['POST'])
+@login_required
+def export_pdf():
+    try:
+        
+        data = request.get_json()
+        history = data.get('history', '')
+        conseil = data.get('conseil', 'Aucun conseil généré.')
+
+       
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        
+        cursor.execute(
+            "SELECT id_question FROM questions WHERE id_utilisateur = %s ORDER BY id_question DESC LIMIT 1", (current_user.id,))
+        result = cursor.fetchone()
+        question_id = result['id_question'] if result else None
+
+        
+        
+        pdf = FPDF()
+        pdf.add_page()
+
+       
+        pdf.set_font("helvetica", "B", 18)
+        pdf.cell(0, 15, "Rapport d'Analyse Automatique", ln=True, align='C')
+        pdf.ln(5)
+
+       
+        def clean_text(t):
+            return str(t).encode('latin-1', 'ignore').decode('latin-1')
+
+       
+        pdf.set_font("helvetica", "B", 12)
+        pdf.cell(0, 10, "Historique des echanges :", ln=True)
+        pdf.set_font("helvetica", size=10)
+        pdf.multi_cell(0, 8, txt=clean_text(history))
+
+        pdf.ln(10)
+
+        
+        pdf.set_fill_color(230, 240, 250)
+        pdf.set_font("helvetica", "B", 12)
+        pdf.cell(0, 10, "Conseil Strategique :", ln=True, fill=True)
+        pdf.set_font("helvetica", "I", 11)
+        pdf.multi_cell(0, 10, txt=clean_text(conseil), border=1)
+
+        # 2. Gestion du stockage physique sur le serveur
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"Rapport_U{current_user.id}_{timestamp}.pdf"
+
+        # Vérification et création du dossier de destination si inexistant
+        report_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'rapports')
+        if not os.path.exists(report_folder):
+            os.makedirs(report_folder)
+
+        # Chemin complet pour sauvegarder le fichier PDF
+        report_path = os.path.join(report_folder, filename)
+        pdf.output(report_path)
+
+        # 3. Enregistrement des métadonnées dans la table 'rapports' (selon ton image)
+        # Colonnes cibles : id_question, rapport_texte, chemin_resume, date_generation
+        query = """
+            INSERT INTO rapports 
+            (id_question, rapport_texte, chemin_resume, date_generation) 
+            VALUES (%s, %s, %s, NOW())
+        """
+        # On insère un extrait du texte et le chemin physique du fichier
+        cursor.execute(query, (question_id, clean_text(history[:500]), report_path))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        # 4. Envoi du fichier généré au navigateur pour téléchargement
+        return send_file(report_path, as_attachment=True, download_name="Rapport_DataIA.pdf")
+
+    except Exception as e:
+        # En cas d'erreur, on affiche le log dans la console et on renvoie un JSON d'erreur
+        print(f"DEBUG EXPORT PDF: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# ================== Mes Fichiers & Upload & Delete ==================
+
+
 @app.route('/mes_fichiers')
 @login_required
 def mes_fichiers():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-
-    # نجيبوا الملفات الكل من غير LIMIT
     cursor.execute("SELECT * FROM fichiers WHERE id_utilisateur = %s ORDER BY id_fichier DESC", (current_user.id,))
     tous_les_fichiers = cursor.fetchall()
-
     cursor.close()
     conn.close()
     return render_template('mes_fichiers.html', fichiers=tous_les_fichiers)
@@ -171,14 +365,11 @@ def upload_file():
     file = request.files['file']
     if file.filename == '':
         return redirect(url_for('dashboard'))
-
     if file:
         filename = secure_filename(file.filename)
         path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(path)
-
         file_type = 'Excel' if filename.endswith(('.xls', '.xlsx')) else 'CSV'
-
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("INSERT INTO fichiers (id_utilisateur, nom_fichier, chemin_fichier, type_fichier) VALUES (%s, %s, %s, %s)",
@@ -186,167 +377,8 @@ def upload_file():
         conn.commit()
         cursor.close()
         conn.close()
-        flash('Fichier uploadé!', 'success')
+        flash('Fichier uploadé avec succès!', 'success')
     return redirect(url_for('dashboard'))
-
-
-@app.route('/logout')
-@login_required
-def logout():
-    logout_user()
-    return redirect(url_for('login'))
-
-
-@app.route('/chat/<int:file_id>')
-@login_required
-def chat(file_id):
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
-    # 1. Njibou el-fichier
-    cursor.execute("SELECT * FROM fichiers WHERE id_fichier = %s AND id_utilisateur = %s", (file_id, current_user.id))
-    fichier = cursor.fetchone()
-
-    # 2. Njibou el-historique mta3 el-chat l-hadha el-fichier bed-dabt
-    cursor.execute("""
-        SELECT question_texte, reponse_texte 
-        FROM questions 
-        WHERE id_fichier = %s AND id_utilisateur = %s 
-        ORDER BY date_question ASC
-    """, (file_id, current_user.id))
-    historique = cursor.fetchall()
-
-    cursor.close()
-    conn.close()
-
-    if not fichier:
-        return redirect(url_for('dashboard'))
-
-    # Nab3thou el-historique lel-HTML
-    return render_template('chat.html', fichier=fichier, historique=historique)
-
-
-@app.route('/ask_ia', methods=['POST'])
-@login_required
-def ask_ia():
-    try:
-        data = request.get_json()
-        file_id = data.get('file_id')
-        user_question = data.get('question')
-
-        if not user_question:
-            return jsonify({"status": "error", "message": "Question vide"}), 400
-
-        # 1. Njibou el-fichier mel Base de données
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM fichiers WHERE id_fichier = %s", (file_id,))
-        fichier = cursor.fetchone()
-
-        if not fichier:
-            cursor.close()
-            conn.close()
-            return jsonify({"status": "error", "message": "Fichier introuvable"}), 404
-
-        # 2. Na9raw el-data (CSV wala Excel)
-        path = fichier['chemin_fichier']
-        try:
-            df = pd.read_csv(path) if path.endswith('.csv') else pd.read_excel(path)
-            context = df.head(15).to_string()  # Nékhdou awel 15 lignes k-contexte
-        except Exception as e:
-            return jsonify({"status": "error", "message": f"Erreur lecture fichier: {str(e)}"}), 500
-
-        # 3. Kallam Mistral API
-        url = "https://api.mistral.ai/v1/chat/completions"
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {MISTRAL_API_KEY}"
-        }
-
-        payload = {
-            "model": "open-mistral-7b",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": """Tu es un expert en Business Intelligence.
-                    Réponds directement aux questions sur les données.
-                    1. Pas de code Python/SQL.
-                    2. Pas de blabla technique.
-                    3. Si graphique demandé, réponds UNIQUEMENT avec ce JSON : {"type_graph": "bar", "data": {"x": [], "y": []}, "title": "..."}"""
-                },
-                {
-                    "role": "user",
-                    "content": f"Données du fichier {fichier['nom_fichier']} :\n{context}\n\nQuestion: {user_question}"
-                }
-            ],
-            "temperature": 0.2
-        }
-
-        response = requests.post(url, json=payload, headers=headers)
-        result = response.json()
-
-        if response.status_code == 200:
-            answer = result['choices'][0]['message']['content']
-
-            # 4. Tasjil fil-base (Table questions)
-            # Thabbet m3aya f-asme el-colonnes: question_texte, reponse_texte, date_question
-            query = """INSERT INTO questions 
-                       (id_utilisateur, id_fichier, question_texte, reponse_texte, date_question) 
-                       VALUES (%s, %s, %s, %s, NOW())"""
-
-            cursor.execute(query, (current_user.id, file_id, user_question, answer))
-            conn.commit()
-
-            cursor.close()
-            conn.close()
-
-            return jsonify({"status": "success", "answer": answer})
-
-        else:
-            cursor.close()
-            conn.close()
-            return jsonify({"status": "error", "message": "Erreur API Mistral"}), 500
-
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route('/export_pdf', methods=['POST'])
-@login_required
-def export_pdf():
-    try:
-        data = request.get_json()
-        chat_content = data.get('content', '')
-
-        # 1. Nettoyage : Na7iw el-Emojis w el-caractères elli ya3mlou machakel
-        # fpdf2 fil-base ma t-7ebbech el-non-latin
-        clean_text = re.sub(r'[^\x00-\x7F]+', ' ', chat_content)
-
-        pdf = FPDF()
-        pdf.add_page()
-
-        # 2. Police standard
-        pdf.set_font("helvetica", "B", 16)
-        pdf.cell(0, 10, "Rapport d'Analyse IA", new_x="LMARGIN", new_y="NEXT", align='C')
-        pdf.ln(10)
-
-        # 3. Contenu
-        pdf.set_font("helvetica", "", 12)
-        pdf.multi_cell(0, 10, txt=clean_text)
-
-        # 4. Response correcte pour Flask
-        pdf_bytes = pdf.output()  # fpdf2 output() ya3ti bytes direct
-
-        response = make_response(pdf_bytes)
-        response.headers.set('Content-Disposition', 'attachment', filename='rapport.pdf')
-        response.headers.set('Content-Type', 'application/pdf')
-        return response
-
-    except Exception as e:
-        print(f"Erreur PDF détaillée: {str(e)}")  # Chof el-terminal hna!
-        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route('/delete_file/<int:file_id>')
@@ -354,25 +386,131 @@ def export_pdf():
 def delete_file(file_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-
-    # 1. نجيبوا مسار الملف قبل ما نفسخوه باش نحيوه مالـ Dossier
     cursor.execute("SELECT chemin_fichier FROM fichiers WHERE id_fichier = %s AND id_utilisateur = %s",
                    (file_id, current_user.id))
     fichier = cursor.fetchone()
-
     if fichier:
-        # فسخ الملف من الـ Dossier uploads
         if os.path.exists(fichier['chemin_fichier']):
             os.remove(fichier['chemin_fichier'])
-
-        # 2. فسخ التسجيل من الـ Database
         cursor.execute("DELETE FROM fichiers WHERE id_fichier = %s", (file_id,))
         conn.commit()
-        flash("Fichier supprimé avec succès", "success")
-
     cursor.close()
     conn.close()
     return redirect(url_for('dashboard'))
+
+
+@app.route('/admin/dashboard')
+@login_required
+@admin_required
+def admin_dashboard():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        
+        cursor.execute("SELECT COUNT(*) as total FROM utilisateurs")
+        users_count = cursor.fetchone()['total']
+        cursor.execute("SELECT COUNT(*) as total FROM rapports")
+        reports_count = cursor.fetchone()['total']
+
+    
+        cursor.execute("""
+            SELECT u.*, 
+                   COUNT(q.id_question) as nb_questions,
+                   (SELECT COUNT(*) FROM rapports r 
+                    JOIN questions q2 ON r.id_question = q2.id_question 
+                    WHERE q2.id_utilisateur = u.id_utilisateur) as nb_rapports
+            FROM utilisateurs u 
+            LEFT JOIN questions q ON u.id_utilisateur = q.id_utilisateur 
+            GROUP BY u.id_utilisateur
+        """)
+        all_users = cursor.fetchall()
+
+        # 3
+        query = """
+            SELECT r.id_rapport, q.question_texte, u.nom_utilisateur as user_name, 
+                   r.date_generation, r.chemin_resume 
+            FROM rapports r
+            JOIN questions q ON r.id_question = q.id_question
+            JOIN utilisateurs u ON q.id_utilisateur = u.id_utilisateur
+            ORDER BY r.date_generation DESC
+        """
+        cursor.execute(query)
+        reports_list = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+
+        return render_template('admin_dashboard.html',
+                               users=users_count,
+                               reports=reports_count,
+                               list=reports_list,
+                               all_users=all_users)
+    except Exception as e:
+        return f"Erreur Admin: {str(e)}"
+
+
+@app.route('/view_report/<path:filename>')
+@login_required
+def view_report(filename):
+    try:
+        return send_file(filename)
+    except Exception as e:
+        return f"Fichier introuvable: {str(e)}"
+
+# 1. Route pour supprimer un utilisateur
+
+
+@app.route('/admin/delete_user/<int:user_id>', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    if current_user.role != 'administrateur':
+        return "Accès refusé", 403
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "DELETE FROM rapports WHERE id_question IN (SELECT id_question FROM questions WHERE id_utilisateur = %s)", (user_id,))
+        cursor.execute("DELETE FROM questions WHERE id_utilisateur = %s", (user_id,))
+        cursor.execute("DELETE FROM fichiers WHERE id_utilisateur = %s", (user_id,))
+        cursor.execute("DELETE FROM utilisateurs WHERE id_utilisateur = %s", (user_id,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return redirect(url_for('admin_dashboard'))
+    except Exception as e:
+        return str(e)
+
+# 2. Route pour bloquer/débloquer
+
+
+@app.route('/admin/toggle_user/<int:user_id>', methods=['POST'])
+@login_required
+def toggle_user(user_id):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("SELECT est_bloque FROM utilisateurs WHERE id_utilisateur = %s", (user_id,))
+        user = cursor.fetchone()
+
+        nouvel_etat = 1 if user['est_bloque'] == 0 else 0
+
+        cursor.execute("UPDATE utilisateurs SET est_bloque = %s WHERE id_utilisateur = %s", (nouvel_etat, user_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return redirect(url_for('admin_dashboard'))
+    except Exception as e:
+        return f"Erreur: {str(e)}"
+
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
 
 
 if __name__ == '__main__':
